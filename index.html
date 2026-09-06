@@ -1,0 +1,1203 @@
+<!doctype html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Tatoeba — sade çeviri</title>
+<style>
+  /* ---- Renkler. Sistem temasına göre koyu/açık. ---- */
+  :root{
+    --bg:#fafaf9; --fg:#1c1a17; --muted:#a8a29e; --faint:#e7e5e4;
+    --accent:#b45309; --ok:#15803d;
+    --metin-oran:1;
+  }
+  @media (prefers-color-scheme: dark){
+    :root{ --bg:#0e0e0e; --fg:#ededea; --muted:#6b6b68; --faint:#242422;
+           --accent:#f0b429; --ok:#4ade80; }
+  }
+
+  *{ box-sizing:border-box; }
+  body{
+    margin:0; background:var(--bg); color:var(--fg);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,
+                "Noto Sans CJK JP","Noto Sans JP",sans-serif;
+    min-height:100vh; display:flex; flex-direction:column;
+  }
+
+  /* Üst şerit: sayaç ve düğmeler. Bilerek çok soluk — dikkat çekmesin. */
+  header{
+    display:flex; justify-content:space-between; align-items:center;
+    padding:14px 20px; font-size:12px; color:var(--muted);
+    letter-spacing:.04em; flex:0 0 auto; gap:10px; min-height:47px;
+  }
+  header #sayac{ white-space:nowrap; flex:0 0 auto; }
+  header .dugmeler{ display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+  .araclarGrup{ display:inline-flex; gap:8px; align-items:center; }
+  header button{
+    background:none; border:1px solid var(--faint); color:var(--muted);
+    padding:5px 12px; border-radius:6px; cursor:pointer;
+    font-size:12px; font-family:inherit;
+    transition:color .15s, border-color .15s, background-color .15s, transform .1s;
+    touch-action:manipulation;
+    user-select:none; -webkit-user-select:none;
+    -webkit-tap-highlight-color:transparent;
+  }
+  header button:hover{ color:var(--fg); border-color:var(--muted); }
+  header button:active{
+    color:var(--fg); border-color:var(--muted);
+    background:var(--faint); transform:scale(0.97);
+  }
+  header button.acik{ color:var(--fg); border-color:var(--muted); }
+  header button:disabled{ opacity:.35; cursor:not-allowed; }
+  header button:disabled:hover{ color:var(--muted); border-color:var(--faint); }
+  header button:disabled:active{ transform:none; background:none; }
+
+  /* Yazı boyutu ayar grubu: [ a | A ] */
+  .boyutGrup{ display:inline-flex; align-items:stretch; }
+  .boyutGrup button{
+    padding:0; width:28px; height:28px;
+    display:inline-flex; align-items:center; justify-content:center;
+    line-height:1;
+  }
+  .boyutGrup #kucultBtn{
+    font-size:11px; font-weight:500;
+    border-top-right-radius:0; border-bottom-right-radius:0;
+    margin-right:-1px;
+  }
+  .boyutGrup #buyutBtn{
+    font-size:14px; font-weight:700;
+    border-top-left-radius:0; border-bottom-left-radius:0;
+  }
+  .boyutGrup button:hover{ position:relative; z-index:1; }
+
+  /* Mobil erişilebilirlik & dokunmatik optimizasyonu */
+  @media (max-width: 640px){
+    header{
+      display:grid;
+      grid-template-columns:1fr auto;
+      row-gap:10px;
+      padding:12px 16px;
+      min-height:auto;
+    }
+    #sayac{
+      grid-column:1;
+      grid-row:1;
+      align-self:center;
+      font-size:12.5px;
+    }
+    header .dugmeler{
+      display:contents;
+    }
+    #modBtn{
+      grid-column:2;
+      grid-row:1;
+      justify-self:end;
+      align-self:center;
+      min-height:36px;
+      padding:6px 14px;
+      font-size:12.5px;
+    }
+    .araclarGrup{
+      grid-column:1 / -1;
+      grid-row:2;
+      display:flex;
+      align-items:center;
+      gap:6px;
+      width:100%;
+    }
+    .araclarGrup > button{
+      flex:1 1 0;
+      min-width:0;
+      min-height:38px;
+      padding:0 6px;
+      font-size:12.5px;
+      display:inline-flex;
+      align-items:center;
+      justify-content:center;
+    }
+    .boyutGrup{
+      flex:0 0 auto;
+      height:38px;
+    }
+    .boyutGrup button{
+      width:38px;
+      height:38px;
+    }
+    .boyutGrup #kucultBtn{ font-size:13px; }
+    .boyutGrup #buyutBtn{ font-size:16px; }
+
+    /* Mobilde diğer düğmelerin dokunma alanını genişlet */
+    .satir button{ min-height:38px; }
+    .arac button{ min-height:40px; }
+  }
+
+  @media (max-width: 480px){
+    #sesBtn .btnYazi{ display:none; }
+  }
+
+  /* Ses butonu ve ayar butonu */
+  #sesBtn.caliyor{ color:var(--accent); border-color:var(--accent); }
+  .ayarSecenekler{ display:flex; justify-content:center; margin-top:24px; }
+  .ayarBtn{
+    background:none; border:1px solid var(--faint); color:var(--muted);
+    padding:6px 16px; border-radius:20px; cursor:pointer;
+    font-size:12px; font-family:inherit;
+    transition:color .15s, border-color .15s, background-color .15s;
+    touch-action:manipulation;
+  }
+  .ayarBtn:hover{ color:var(--fg); border-color:var(--muted); }
+  .ayarBtn.acik{ color:var(--ok); border-color:var(--ok); }
+
+  /* Zincirleme bağlam rozeti */
+  .zincirRozet{
+    text-align:center; min-height:1.6em; margin-bottom:.6rem;
+  }
+  .zincirRozet span{
+    display:inline-flex; align-items:center; gap:5px;
+    background:var(--faint); color:var(--muted);
+    padding:2px 10px; border-radius:12px; font-size:11.5px;
+    letter-spacing:.02em;
+  }
+
+  main{ flex:1 1 auto; display:flex; align-items:center; justify-content:center; padding:20px; }
+  .wrap{ width:100%; max-width:820px; }
+
+  /* ---- PAKET SEÇİMİ (açılış ekranı) ---- */
+  .paketler{ display:flex; gap:48px; justify-content:center; flex-wrap:wrap; }
+  .paket{
+    display:flex; flex-direction:column; gap:6px; align-items:center;
+    background:none; border:none; padding:16px 24px; cursor:pointer;
+    font-family:inherit; color:var(--fg);
+  }
+  .paket:hover .paketAd{ color:var(--accent); }
+  .paket:focus-visible{ outline:2px solid var(--accent); outline-offset:4px; border-radius:6px; }
+  .paketAd{ font-size:1.5rem; line-height:1.2; transition:color .15s; }
+  .paketAdet{ font-size:.92rem; color:var(--muted); }
+
+  /* ---- ÇEVİRİ EKRANI ---- */
+  /* Japonca cümle: ekrandaki tek baskın öğe. */
+  #jp{
+    font-family:"Noto Sans CJK JP","Noto Sans JP","Hiragino Kaku Gothic ProN",
+                "Yu Gothic","Meiryo",sans-serif;
+    font-size:calc(clamp(1.8rem, 4.2vw, 2.9rem) * var(--metin-oran, 1));
+    line-height:1.75; text-align:center; margin:0 0 2.5rem;
+    word-break:break-word;
+  }
+
+  /* ---- FURIGANA ---- */
+  /* Okumalar açıkken satır aralığı artmalı, yoksa üst satıra değer. */
+  #jp.furiganali{ line-height:2.2; }
+  #jp ruby{ ruby-align:center; }
+  #jp rt{
+    font-size:.4em; font-weight:400; color:var(--muted);
+    line-height:1.15; letter-spacing:.02em;
+  }
+  /* rp = ruby desteklemeyen tarayıcılar için parantez yedeği.
+     Destekleyen tarayıcılar zaten gizler, garanti olsun diye açıkça gizliyoruz. */
+  #jp rp{ display:none; }
+
+  /* ---- YAZMA ALANI: klasik terminal komut satırı ----
+     Kehribar imleç bilerek: eski amber CRT terminallerin rengi,
+     hem de sayfanın mevcut vurgu rengiyle aynı. */
+  #satir{
+    display:flex; align-items:flex-start; gap:.7ch;
+    font-family:"DejaVu Sans Mono","Liberation Mono","JetBrains Mono",
+                "Fira Mono",Menlo,Consolas,monospace;
+    font-size:calc(clamp(1rem, 2vw, 1.28rem) * (1 + (var(--metin-oran, 1) - 1) * 0.35));
+    line-height:1.65;
+    border-top:1px solid var(--faint);
+    padding-top:1.2rem;
+    cursor:text;
+  }
+  #istem{ color:var(--accent); flex:0 0 auto; user-select:none; }
+  #girdiKap{ position:relative; flex:1 1 auto; min-width:0; }
+
+  /* Asıl textarea üstte duruyor ama GÖRÜNMEZ: metni de imleci de
+     alttaki #yansima çiziyor. Tarayıcı imlecin şeklini değiştirmeye
+     izin vermediği için blok imleç ancak böyle yapılabiliyor. */
+  #tr, #yansima{
+    font:inherit; letter-spacing:inherit;
+    margin:0; padding:0; border:0;
+    white-space:pre-wrap; word-break:break-word;
+  }
+  #tr{
+    position:absolute; inset:0; width:100%; height:100%;
+    background:none; outline:none; resize:none; overflow:hidden;
+    color:transparent; caret-color:transparent;
+  }
+  #tr::selection{ background:var(--faint); }
+  #yansima{ color:var(--fg); min-height:1.65em; pointer-events:none; }
+
+  /* Blok imleç: üstünde durduğu harfi ters renkte gösterir,
+     tıpkı gerçek terminalde olduğu gibi. */
+  #imlec{ background:var(--accent); color:var(--bg); padding:0; margin:0; }
+  #imlec.imlecBos{
+    display:inline-block; width:.55em; height:1.12em;
+    vertical-align:-0.15em; line-height:1;
+  }
+  /* Yanıp sönerken SADECE blok gidiyor, altındaki harf yerinde kalıyor.
+     opacity ile söndürmek harfi de yok ediyordu — gerçek terminal öyle
+     davranmaz, imleç sönünce karakter normal haliyle görünür.
+     step-end = yumuşak geçiş yok, sert açılıp kapanma. */
+  @keyframes imlecYanip{
+    0%,50%      { background:var(--accent); color:var(--bg); }
+    50.01%,100% { background:transparent;   color:var(--fg); }
+  }
+  #satir:not(.odaksiz) #imlec{ animation:imlecYanip 1.06s step-end infinite; }
+  /* Odak yokken sabit ve sönük bir blok — harf yine okunabilir kalmalı. */
+  #satir.odaksiz #imlec{ background:var(--faint); color:var(--fg); }
+
+  /* İngilizce ipucu: VARSAYILAN GİZLİ. Tab ile açılır. */
+  #hint{
+    margin-top:1.6rem; text-align:center; font-size:.95rem;
+    color:var(--muted); font-style:italic; min-height:1.4em;
+    line-height:1.5;
+  }
+  #hint.gizli{ visibility:hidden; }
+
+  /* ---- PAKET BİTTİ EKRANI ---- */
+  #bitisBaslik{
+    text-align:center; font-size:1.75rem; font-weight:400;
+    margin:0 0 .7rem; letter-spacing:.01em;
+  }
+  #bitisAlt{
+    text-align:center; color:var(--muted); font-size:.95rem;
+    margin:0; line-height:1.7;
+  }
+
+  footer{
+    flex:0 0 auto; text-align:center; padding:16px;
+    font-size:11.5px; color:var(--faint); letter-spacing:.03em;
+    line-height:1.9;
+  }
+  kbd{
+    font-family:inherit; border:1px solid currentColor; border-radius:4px;
+    padding:1px 5px; font-size:10.5px;
+  }
+  #furiganaNot{ display:block; color:var(--muted); opacity:.75; font-size:11px; }
+
+  /* ---- GÖNDERİM EKRANI ---- */
+  .satir{
+    border-bottom:1px solid var(--faint); padding:16px 4px;
+    display:flex; gap:14px; align-items:flex-start;
+  }
+  .satir .metin{ flex:1 1 auto; min-width:0; }
+  .satir .ja{
+    font-family:"Noto Sans CJK JP","Noto Sans JP","Hiragino Kaku Gothic ProN",sans-serif;
+    font-size:1.05rem; margin-bottom:5px; line-height:1.6;
+  }
+  .satir .tu{ color:var(--muted); font-size:.92rem; line-height:1.5; }
+  .satir button{
+    flex:0 0 auto; background:none; border:1px solid var(--faint);
+    color:var(--fg); padding:8px 14px; border-radius:6px; cursor:pointer;
+    font-size:12.5px; font-family:inherit; white-space:nowrap;
+  }
+  .satir button:hover{ border-color:var(--accent); color:var(--accent); }
+  .satir.bitti{ opacity:.4; }
+  .satir.bitti button{ border-color:var(--ok); color:var(--ok); }
+
+  .listeBos{ text-align:center; color:var(--muted); padding:60px 20px; line-height:1.8; }
+  .arac{ display:flex; gap:10px; justify-content:center; margin-top:28px; flex-wrap:wrap; }
+  .arac button{
+    background:none; border:1px solid var(--faint); color:var(--muted);
+    padding:8px 16px; border-radius:6px; cursor:pointer; font-size:12.5px;
+    font-family:inherit;
+  }
+  .arac button:hover{ color:var(--fg); border-color:var(--muted); }
+  .gizle{ display:none !important; }
+  #uyari{ text-align:center; color:var(--accent); font-size:12px; padding:0 20px 10px; }
+  #bekleyenNot{
+    text-align:center; margin-top:2.4rem; font-size:12.5px; color:var(--muted);
+  }
+  #bekleyenNot button{
+    background:none; border:none; color:var(--accent); cursor:pointer;
+    font-family:inherit; font-size:12.5px; text-decoration:underline;
+    text-underline-offset:3px; padding:0;
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <span id="sayac"></span>
+  <span class="dugmeler">
+    <span class="araclarGrup" id="araclarGrup">
+      <span class="boyutGrup" id="boyutGrup">
+        <button id="kucultBtn" title="yazı boyutunu küçült (a)" type="button">a</button>
+        <button id="buyutBtn" title="yazı boyutunu büyüt (A)" type="button">A</button>
+      </span>
+      <button id="sesBtn" title="ses kaydını dinle (Alt+S)" type="button">🔊 <span class="btnYazi">dinle</span></button>
+      <button id="furiganaBtn" title="kanji okumalarını göster/gizle (Shift+Tab)" type="button">ふりがな</button>
+      <button id="kopyalaBtn" title="orijinal Japonca cümleyi kopyala" type="button">kopyala</button>
+      <button id="jishoBtn" title="cümleyi Jisho'da ara (jisho.org)" type="button">Jisho ↗</button>
+    </span>
+    <button id="modBtn" type="button">gönderim turu →</button>
+  </span>
+</header>
+
+<div id="uyari" class="gizle"></div>
+
+<main>
+  <!-- AÇILIŞ: PAKET SEÇİMİ -->
+  <div class="wrap" id="ekranBaslangic">
+    <div class="paketler">
+      <button class="paket" id="paketKisa">
+        <span class="paketAd">kısa</span>
+        <span class="paketAdet"></span>
+      </button>
+      <button class="paket" id="paketNormal">
+        <span class="paketAd">normal</span>
+        <span class="paketAdet"></span>
+      </button>
+    </div>
+    <div class="ayarSecenekler">
+      <button id="sesFiltreBtn" class="ayarBtn" type="button" title="Sesli cümle filtresini aç/kapat">
+        🔊 sesli cümleler: açık
+      </button>
+    </div>
+    <div id="bekleyenNot" class="gizle"></div>
+  </div>
+
+  <!-- ÇEVİRİ EKRANI -->
+  <div class="wrap gizle" id="ekranCeviri">
+    <div id="zincirRozet" class="zincirRozet"></div>
+    <p id="jp">…</p>
+    <div id="satir" class="odaksiz">
+      <span id="istem">❯</span>
+      <div id="girdiKap">
+        <div id="yansima" aria-hidden="true"></div>
+        <textarea id="tr" rows="1" autocomplete="off" aria-label="türkçe çeviri"
+                  autocapitalize="off" spellcheck="false"></textarea>
+      </div>
+    </div>
+    <div id="hint" class="gizli"></div>
+  </div>
+
+  <!-- PAKET BİTTİ -->
+  <div class="wrap gizle" id="ekranBitis">
+    <p id="bitisBaslik">paket bitti</p>
+    <p id="bitisAlt"></p>
+    <div class="arac">
+      <button id="bitisGonderim">gönderim turu →</button>
+      <button id="bitisYeni">yeni paket</button>
+    </div>
+  </div>
+
+  <!-- GÖNDERİM EKRANI -->
+  <div class="wrap gizle" id="ekranGonderim">
+    <div id="liste"></div>
+    <div class="arac">
+      <button id="disaAktar">JSON indir</button>
+      <button id="temizle">gönderilenleri sil</button>
+    </div>
+  </div>
+</main>
+
+<footer id="altbilgi" class="gizle">
+  <kbd>Enter</kbd> kaydet &amp; sonraki &nbsp;·&nbsp;
+  <kbd>Tab</kbd> ingilizce ipucu &nbsp;·&nbsp;
+  <kbd>Shift+Tab</kbd> furigana &nbsp;·&nbsp;
+  <kbd>Esc</kbd> atla &nbsp;·&nbsp;
+  <kbd>Alt+S</kbd> ses &nbsp;·&nbsp;
+  <kbd>Alt+C</kbd> kopyala &nbsp;·&nbsp;
+  <kbd>Alt+J</kbd> jisho
+  <span id="furiganaNot" class="gizle">
+    okumaların çoğu otomatik üretilmiş — doğrulanmamış olabilir
+  </span>
+</footer>
+
+<script>
+"use strict";
+
+/* ============================================================
+   AYARLAR — değiştirmek istersen sadece burayı düzenle
+   ============================================================ */
+const KAYNAK_DIL  = "jpn";   // çevirdiğin dil
+const HEDEF_DIL   = "tur";   // çevirdiğin dile
+const IPUCU_DIL   = "eng";   // takılınca göstereceği yardımcı dil
+const KISA_ADET   = 3;       // "kısa" pakette kaç çeviri
+const NORMAL_ADET = 30;      // "normal" pakette kaç çeviri
+
+/* Hedeften biraz fazla çekiyoruz: atladığın cümleler hedefe saymadığı için
+   tampon gerekiyor, yoksa 3'lük pakette iki atlayışta yeniden istek atardık. */
+function cekimAdedi(){ return Math.max(hedef + 7, 12); }
+
+const ANAHTAR_SES = "tatoeba-sade-ses";
+let sesFiltresiAcik = true;
+let aktifSes = null;
+let zincirKelimeleri = [];
+
+/* Dilbilgisel açıdan çok genel/aşırı yaygın zamirler ve durak kelimeler.
+   Bunları arama teması yapmıyoruz ki zincir daima anlamlı isim/fiil/sıfatlara odaklansın. */
+const STOPWORDS = new Set([
+  "私", "わたし", "僕", "ぼく", "彼", "かれ", "彼女", "かのじょ",
+  "人", "ひと", "何", "なに", "これ", "それ", "あれ", "事", "物",
+  "者", "気", "時", "方", "よう", "そう", "ため", "どこ", "だれ",
+  "今", "今日", "昨日", "明日", "年", "月", "日", "前", "後", "中",
+  "上", "下", "一", "二", "三", "四", "五", "六", "七", "八", "九", "十"
+]);
+
+/* Verilen Japonca cümleden zincirleme sorgu için anahtar kanji kelimelerini çıkarır */
+function anahtarKelimeleriCikar(ja){
+  const bloklar = ja.match(/[\u4e00-\u9faf\u3400-\u4dbf々]+/g) || [];
+  const sonuc = [];
+  for(const b of bloklar){
+    if(!STOPWORDS.has(b) && !sonuc.includes(b)){
+      sonuc.push(b);
+    }
+  }
+  // 2+ karakterli bileşikler önce gelsin (örn. 運転, 車'dan daha spesifiktir)
+  sonuc.sort((a, b) => b.length - a.length);
+  return sonuc;
+}
+
+/* API sorgusu.  "!trans:lang=tur" = Türkçe çevirisi OLMAYAN cümleler.
+   Ünlem işareti URL'de %21 olarak kodlanmalı.
+   is_unapproved=no       -> doğrulanmamış/hatalı cümleler elensin.
+   include=transcriptions,audios -> furigana ve ses verileri de gelsin. */
+function apiUrl(secenekler = {}){
+  let url = "https://api.tatoeba.org/unstable/sentences"
+    + "?lang=" + KAYNAK_DIL
+    + "&%21trans%3Alang=" + HEDEF_DIL
+    + "&sort=random"
+    + "&limit=" + (secenekler.limit || cekimAdedi())
+    + "&is_unapproved=no"
+    + "&showtrans=all"
+    + "&include=transcriptions,audios";
+
+  if(secenekler.q){
+    url += "&q=" + encodeURIComponent(secenekler.q);
+  }
+  if(sesFiltresiAcik && secenekler.ses !== false){
+    url += "&has_audio=yes";
+  }
+  return url;
+}
+
+/* ============================================================
+   DURUM
+   ============================================================ */
+let kuyruk = [];      // çevrilmeyi bekleyen cümleler
+let sira   = 0;       // kuyrukta kaçıncı cümledeyiz
+let kayit  = [];      // yazdığın çeviriler {id, ja, tr, gonderildi}
+let depoCalisiyor = true;
+let furiganaAcik = false;
+
+let hedef      = 0;   // bu paketteki çeviri hedefi (0 = paket yok)
+let cevrilen   = 0;   // bu pakette kaç çeviri yapıldı
+let cekimSozu  = null;// süren API isteği (aynı anda iki istek atmamak için)
+let aktifEkran = "baslangic";
+
+const $ = s => document.querySelector(s);
+
+/* ---- Kalıcılık. file:// üzerinde localStorage bazı tarayıcılarda
+   kapalı olabilir; o yüzden her erişimi korumaya alıyoruz. ---- */
+const ANAHTAR          = "tatoeba-sade-kayit";
+const ANAHTAR_FURIGANA = "tatoeba-sade-furigana";
+const ANAHTAR_BOYUT    = "tatoeba-sade-boyut";
+
+const BOYUT_ORANLARI = [0.75, 0.88, 1.0, 1.18, 1.4, 1.7, 2.0];
+const VARSAYILAN_BOYUT_INDEKS = 2;
+let boyutIndeks = VARSAYILAN_BOYUT_INDEKS;
+let kopyalaZamanlayici = null;
+
+function boyutAyarla(indeks){
+  boyutIndeks = Math.max(0, Math.min(BOYUT_ORANLARI.length - 1, indeks));
+  document.documentElement.style.setProperty("--metin-oran", BOYUT_ORANLARI[boyutIndeks]);
+  const kucult = $("#kucultBtn");
+  const buyut  = $("#buyutBtn");
+  if(kucult) kucult.disabled = (boyutIndeks === 0);
+  if(buyut)  buyut.disabled  = (boyutIndeks === BOYUT_ORANLARI.length - 1);
+  try{ localStorage.setItem(ANAHTAR_BOYUT, String(boyutIndeks)); }catch(e){}
+}
+
+function kaydet(){
+  try{
+    localStorage.setItem(ANAHTAR, JSON.stringify(kayit));
+  }catch(e){
+    if(depoCalisiyor){
+      depoCalisiyor = false;
+      uyar("Tarayıcı yerel kaydı engelliyor — çevirilerin sadece bu sekmede " +
+           "duruyor. Bitirince mutlaka “JSON indir”e bas.");
+    }
+  }
+}
+function yukle(){
+  try{
+    const h = localStorage.getItem(ANAHTAR);
+    if(h) kayit = JSON.parse(h) || [];
+    furiganaAcik = localStorage.getItem(ANAHTAR_FURIGANA) === "1";
+    const b = localStorage.getItem(ANAHTAR_BOYUT);
+    if(b !== null && !isNaN(Number(b))){
+      boyutIndeks = Math.max(0, Math.min(BOYUT_ORANLARI.length - 1, Number(b)));
+    }
+    const s = localStorage.getItem(ANAHTAR_SES);
+    sesFiltresiAcik = (s !== "0");
+  }catch(e){ depoCalisiyor = false; }
+}
+
+function sesFiltreGuncelle(){
+  const btn = $("#sesFiltreBtn");
+  if(!btn) return;
+  btn.textContent = sesFiltresiAcik ? "🔊 sesli cümleler: açık" : "🔇 sesli cümleler: kapalı";
+  btn.classList.toggle("acik", sesFiltresiAcik);
+  try{ localStorage.setItem(ANAHTAR_SES, sesFiltresiAcik ? "1" : "0"); }catch(e){}
+}
+function uyar(msg){
+  const u = $("#uyari");
+  u.textContent = msg;
+  u.classList.remove("gizle");
+}
+function bekleyenSayisi(){ return kayit.filter(k => !k.gonderildi).length; }
+
+/* ============================================================
+   EKRAN YÖNETİMİ
+   ============================================================
+   Dört ekran var ve her birinde üst/alt şeridin farklı parçaları
+   anlamlı. Tek yerden yönetmek, ekran ekledikçe dağılmasını önlüyor. */
+const EKRANLAR = {
+  baslangic: { sec:"#ekranBaslangic", araclar:false, furigana:false, altbilgi:false, mod:false },
+  ceviri:    { sec:"#ekranCeviri",    araclar:true,  furigana:true,  altbilgi:true,  mod:true  },
+  bitis:     { sec:"#ekranBitis",     araclar:false, furigana:false, altbilgi:false, mod:false },
+  gonderim:  { sec:"#ekranGonderim",  araclar:false, furigana:false, altbilgi:false, mod:true  }
+};
+
+function ekranGoster(ad){
+  aktifEkran = ad;
+  for(const [k, e] of Object.entries(EKRANLAR)){
+    $(e.sec).classList.toggle("gizle", k !== ad);
+  }
+  const e = EKRANLAR[ad];
+  $("#araclarGrup").classList.toggle("gizle", !e.araclar);
+  $("#altbilgi").classList.toggle("gizle", !e.altbilgi);
+  $("#modBtn").classList.toggle("gizle", !e.mod);
+}
+
+/* ============================================================
+   PAKETLER
+   ============================================================ */
+function baslangicHazirla(){
+  ekranGoster("baslangic");
+  $("#sayac").textContent = "";
+  $("#paketKisa   .paketAdet").textContent = KISA_ADET   + " cümle";
+  $("#paketNormal .paketAdet").textContent = NORMAL_ADET + " cümle";
+  sesFiltreGuncelle();
+
+  // Önceki oturumdan bekleyen çeviri varsa hatırlat
+  const b = bekleyenSayisi();
+  const not = $("#bekleyenNot");
+  not.classList.toggle("gizle", b === 0);
+  if(b){
+    not.textContent = b + " çeviri gönderilmeyi bekliyor — ";
+    const d = document.createElement("button");
+    d.textContent = "gönderim turuna git";
+    d.onclick = gonderimeGit;
+    not.append(d);
+  }
+}
+
+async function paketBaslat(adet){
+  hedef    = adet;
+  cevrilen = 0;
+  kuyruk   = [];
+  sira     = 0;
+  zincirKelimeleri = [];
+  if(aktifSes){
+    aktifSes.pause();
+    aktifSes.currentTime = 0;
+    aktifSes = null;
+  }
+
+  ekranGoster("ceviri");
+  $("#jp").textContent = "cümleler alınıyor…";
+  $("#jp").classList.remove("furiganali");
+  $("#satir").classList.add("gizle");
+  $("#hint").classList.add("gizli");
+  const rozet = $("#zincirRozet");
+  if(rozet) rozet.innerHTML = "";
+  $("#sayac").textContent = "0 / " + hedef;
+  $("#kopyalaBtn").disabled = true;
+  $("#jishoBtn").disabled = true;
+  if($("#sesBtn")) $("#sesBtn").disabled = true;
+
+  await kuyrugaEkle();
+  $("#satir").classList.remove("gizle");
+  goster();
+}
+
+function paketBitti(){
+  ekranGoster("bitis");
+  $("#sayac").textContent = "✓ " + cevrilen + " / " + hedef;
+  $("#bitisBaslik").textContent =
+      cevrilen >= hedef ? "paket bitti" : "cümle kalmadı";
+
+  const b = bekleyenSayisi();
+  $("#bitisAlt").textContent =
+      cevrilen + " çeviri yaptın." +
+      (b ? "  Toplam " + b + " çeviri gönderilmeyi bekliyor." : "");
+}
+
+$("#paketKisa"  ).onclick = () => paketBaslat(KISA_ADET);
+$("#paketNormal").onclick = () => paketBaslat(NORMAL_ADET);
+$("#bitisYeni"  ).onclick = baslangicHazirla;
+$("#bitisGonderim").onclick = gonderimeGit;
+
+/* ============================================================
+   FURIGANA
+   ============================================================
+   API hazır <ruby> HTML'i veriyor, tarayıcı bunu doğal olarak
+   furigana diye basıyor. Ama bu HTML DIŞARIDAN geliyor — olduğu gibi
+   innerHTML'e basmak güvenlik açığı olurdu. Onun yerine ayrıştırıp
+   SADECE ruby/rb/rt/rp etiketlerini, hiçbir öznitelik almadan,
+   sıfırdan yeniden kuruyoruz. Geri kalan her şey (script, style,
+   onclick...) sessizce elenir.                                    */
+const IZINLI_ETIKETLER = new Set(["RUBY","RB","RT","RP"]);
+/* Bunlar içerikleriyle BİRLİKTE atılır. Etiketleri elense bile metinleri
+   ekrana düz yazı olarak sızardı; onu da istemiyoruz. */
+const TAMAMEN_ATILACAK = new Set(["SCRIPT","STYLE","TEMPLATE","NOSCRIPT","TITLE"]);
+
+function furiganaDugumu(html){
+  const kaynak = new DOMParser()
+      .parseFromString("<body>" + html, "text/html").body;
+  const kap = document.createElement("span");
+
+  (function kopyala(kdugum, hdugum){
+    for(const c of kdugum.childNodes){
+      if(c.nodeType === Node.TEXT_NODE){
+        hdugum.append(c.textContent);              // düz metin: sorunsuz
+      }else if(c.nodeType === Node.ELEMENT_NODE){
+        if(TAMAMEN_ATILACAK.has(c.tagName)){
+          continue;                                // etiket de içeriği de gitsin
+        }else if(IZINLI_ETIKETLER.has(c.tagName)){
+          const yeni = document.createElement(c.tagName.toLowerCase());
+          hdugum.append(yeni);
+          kopyala(c, yeni);                        // izinli: içine in
+        }else{
+          kopyala(c, hdugum);                      // izinsiz: etiketi at, metni koru
+        }
+      }
+      // yorum ve diğer düğüm tipleri tamamen atılır
+    }
+  })(kaynak, kap);
+
+  return kap;
+}
+
+/* Cümleyi ekrana basar — furigana açıksa ruby'li, değilse düz. */
+function cumleBas(c){
+  const jp = $("#jp");
+  jp.textContent = "";
+  jp.classList.remove("furiganali");
+  jp.removeAttribute("title");
+
+  if(furiganaAcik && c.furigana){
+    jp.append(furiganaDugumu(c.furigana));
+    jp.classList.add("furiganali");
+    jp.title = c.furiganaOnayli
+      ? "okumalar bir kullanıcı tarafından doğrulanmış"
+      : "okumalar otomatik üretilmiş — doğrulanmamış";
+  }else{
+    jp.textContent = c.ja;
+  }
+}
+
+function furiganaUygula(){
+  $("#furiganaBtn").classList.toggle("acik", furiganaAcik);
+  $("#furiganaNot").classList.toggle("gizle", !furiganaAcik);
+  try{ localStorage.setItem(ANAHTAR_FURIGANA, furiganaAcik ? "1" : "0"); }catch(e){}
+  const c = kuyruk[sira];
+  if(c) cumleBas(c);
+}
+
+/* ============================================================
+   CÜMLE ÇEKME (Zincirleme & Ses Destekli)
+   ============================================================ */
+async function tekilPartiCek(secenekler = {}){
+  const cevap = await fetch(apiUrl(secenekler));
+  if(!cevap.ok) throw new Error("API " + cevap.status);
+  const veri = await cevap.json();
+
+  // Zaten çevrilenleri ve şu an kuyrukta olanları tekrar gösterme (tam tekilleştirme)
+  const bilinen = new Set([
+    ...kayit.map(k => k.id),
+    ...kuyruk.map(k => k.id)
+  ]);
+
+  return (veri.data || [])
+    .filter(c => !bilinen.has(c.id))
+    .map(c => {
+      // Hrkt = hiragana/katakana okuması (furigana)
+      const okuma = (c.transcriptions || [])
+                      .filter(t => t.script === "Hrkt" && t.html)[0];
+      // Ses kaydı URL'si
+      const sesObj = (c.audios && c.audios.length > 0) ? c.audios[0] : null;
+      const sesUrl = sesObj ? ("https://tatoeba.org/en/audio/download/" + sesObj.id) : null;
+
+      return {
+        id: c.id,
+        ja: c.text,
+        ipucu: (c.translations || [])
+                 .filter(t => t.lang === IPUCU_DIL)
+                 .map(t => t.text)[0] || null,
+        furigana:       okuma ? okuma.html : null,
+        furiganaOnayli: okuma ? !okuma.needsReview : false,
+        sesUrl:         sesUrl,
+        baglam:         secenekler.baglam || null
+      };
+    });
+}
+
+/* Kapsamlı (extensive) zincirleme kuyruk doldurma */
+function kuyrugaEkle(){
+  if(cekimSozu) return cekimSozu;
+  cekimSozu = (async () => {
+    try{
+      // 1. Kuyruk boşsa ilk tohum cümleyi getir
+      if(kuyruk.length === 0){
+        let tohumlar = await tekilPartiCek({ limit: 4, baglam: "✨ tohum cümle" });
+        if(tohumlar.length === 0 && sesFiltresiAcik){
+          tohumlar = await tekilPartiCek({ limit: 4, ses: false, baglam: "✨ tohum cümle" });
+        }
+        if(tohumlar.length > 0){
+          const ilk = tohumlar[0];
+          kuyruk.push(ilk);
+          zincirKelimeleri = anahtarKelimeleriCikar(ilk.ja);
+        }
+      }
+
+      // 2. Zincir kelimeleri ile bağlamsal cümleleri çek
+      let adim = 0;
+      while(kuyruk.length < cekimAdedi() && zincirKelimeleri.length > 0 && adim < 8){
+        adim++;
+        const kelime = zincirKelimeleri.shift();
+        let baglantililar = await tekilPartiCek({
+          q: kelime,
+          limit: 3,
+          baglam: "🔗 zincir: " + kelime
+        });
+
+        if(baglantililar.length === 0 && sesFiltresiAcik){
+          baglantililar = await tekilPartiCek({
+            q: kelime,
+            ses: false,
+            limit: 3,
+            baglam: "🔗 zincir: " + kelime
+          });
+        }
+
+        if(baglantililar.length > 0){
+          const eklenecek = baglantililar.slice(0, 2);
+          for(const ek of eklenecek){
+            kuyruk.push(ek);
+            const yeniKelimeler = anahtarKelimeleriCikar(ek.ja);
+            for(const yk of yeniKelimeler){
+              if(!zincirKelimeleri.includes(yk) && yk !== kelime){
+                zincirKelimeleri.push(yk);
+              }
+            }
+          }
+        }
+      }
+
+      // 3. Kuyruk hala dolmadıysa yeni tohumlar ekle
+      if(kuyruk.length < cekimAdedi()){
+        let ekTohumlar = await tekilPartiCek({ limit: cekimAdedi() - kuyruk.length });
+        if(ekTohumlar.length === 0 && sesFiltresiAcik){
+          ekTohumlar = await tekilPartiCek({ limit: cekimAdedi() - kuyruk.length, ses: false });
+        }
+        for(const t of ekTohumlar){
+          if(!t.baglam) t.baglam = "✨ tohum cümle";
+          kuyruk.push(t);
+          const tKw = anahtarKelimeleriCikar(t.ja);
+          for(const k of tKw){
+            if(!zincirKelimeleri.includes(k)) zincirKelimeleri.push(k);
+          }
+        }
+      }
+    }catch(e){
+      $("#jp").textContent = "Cümleler alınamadı.";
+      uyar("Bağlantı hatası: " + e.message +
+           " — internet bağlantını kontrol edip sayfayı yenile.");
+    }finally{
+      cekimSozu = null;
+    }
+  })();
+  return cekimSozu;
+}
+
+/* ============================================================
+   ÇEVİRİ EKRANI
+   ============================================================ */
+function goster(){
+  const c = kuyruk[sira];
+
+  // Kuyruk tükendi ama hedefe varılmadı (çok atladın) — yenisini getir
+  if(!c){
+    $("#kopyalaBtn").disabled = true;
+    $("#jishoBtn").disabled = true;
+    if($("#sesBtn")) $("#sesBtn").disabled = true;
+    $("#jp").textContent = "cümleler alınıyor…";
+    kuyrugaEkle().then(() => {
+      if(kuyruk[sira]) goster();
+      else paketBitti();          // gerçekten cümle kalmadı
+    });
+    return;
+  }
+
+  // Önceki ses çalıyorsa durdur
+  if(aktifSes){
+    aktifSes.pause();
+    aktifSes.currentTime = 0;
+    aktifSes = null;
+  }
+
+  $("#kopyalaBtn").disabled = false;
+  $("#jishoBtn").disabled = false;
+
+  // Ses butonu durumu
+  const sesBtn = $("#sesBtn");
+  if(sesBtn){
+    if(c.sesUrl){
+      sesBtn.disabled = false;
+      sesBtn.title = "ses kaydını dinle (Alt+S)";
+      sesBtn.innerHTML = '🔊 <span class="btnYazi">dinle</span>';
+    }else{
+      sesBtn.disabled = true;
+      sesBtn.title = "bu cümlenin ses kaydı yok";
+      sesBtn.innerHTML = '🔇 <span class="btnYazi">ses yok</span>';
+    }
+  }
+
+  // Zincir rozetini güncelle
+  const rozet = $("#zincirRozet");
+  if(rozet){
+    rozet.innerHTML = c.baglam ? `<span>${c.baglam}</span>` : "";
+  }
+
+  cumleBas(c);
+  $("#tr").value = "";
+  $("#satir").classList.remove("gizle");
+  $("#hint").textContent = c.ipucu || "(bu cümlenin ipucu yok)";
+  $("#hint").classList.add("gizli");   // her cümlede ipucu yeniden gizlenir
+  imlecCiz();
+  $("#tr").focus();
+
+  $("#sayac").textContent = cevrilen + " / " + hedef;
+
+  // Paket bitmeye yaklaşınca sessizce yenisini getir
+  if(kuyruk.length - sira < 6) kuyrugaEkle();
+}
+
+function ilerle(){
+  if(aktifSes){
+    aktifSes.pause();
+    aktifSes.currentTime = 0;
+    aktifSes = null;
+  }
+  sira++;
+  goster();
+}
+
+/* Terminal imleci.
+   Metni textarea yerine #yansima çiziyor; imlecin bulunduğu yere blok
+   koyuyoruz. Ok tuşuyla metnin ortasına gidersen blok da oraya gider —
+   sondan sabit bir kare koymak yanlış olurdu.
+   Kutu kendi kendine büyüyor: yansımanın yüksekliği textarea'yı taşıyor,
+   ayrıca boyut hesabı gerekmiyor. */
+function imlecCiz(){
+  const t = $("#tr"), y = $("#yansima");
+  const metin = t.value;
+  const bas = t.selectionStart, son = t.selectionEnd;
+
+  y.textContent = "";
+
+  // Seçim varken sahte imleci gizliyoruz ki tarayıcının kendi
+  // seçim vurgusu okunabilsin.
+  if(bas !== son){ y.textContent = metin; return; }
+
+  const uzeri   = metin.slice(bas, bas + 1);
+  const harfVar = uzeri && uzeri !== "\n";   // satır sonunda blok boş kalmalı
+
+  y.append(document.createTextNode(metin.slice(0, bas)));
+
+  const im = document.createElement("span");
+  im.id = "imlec";
+  if(harfVar){
+    im.textContent = uzeri;
+  }else{
+    im.className = "imlecBos";
+    im.textContent = " ";               // blok genişliği korunsun
+  }
+  y.append(im);
+
+  y.append(document.createTextNode(metin.slice(bas + (harfVar ? 1 : 0))));
+}
+
+/* keyup da dinleniyor: ok tuşları imleci oynatır ama input olayı üretmez. */
+["input","keyup","click","select"].forEach(ev =>
+  $("#tr").addEventListener(ev, imlecCiz));
+$("#tr").addEventListener("focus", () => {
+  $("#satir").classList.remove("odaksiz");
+  imlecCiz();
+});
+$("#tr").addEventListener("blur", () => $("#satir").classList.add("odaksiz"));
+$("#satir").addEventListener("click", () => $("#tr").focus());
+
+$("#tr").addEventListener("keydown", e => {
+  // Enter = kaydet ve sonraki  (Shift+Enter = alt satır)
+  if(e.key === "Enter" && !e.shiftKey){
+    e.preventDefault();
+    const metin = $("#tr").value.trim();
+    const c = kuyruk[sira];
+    if(metin && c){
+      kayit.push({ id:c.id, ja:c.ja, tr:metin, gonderildi:false });
+      kaydet();
+      cevrilen++;
+      if(cevrilen >= hedef){ paketBitti(); return; }   // paket tamamlandı
+    }
+    ilerle();
+  }
+  // Shift+Tab = furigana aç/kapa   (Tab'ın doğal karşıtı)
+  else if(e.key === "Tab" && e.shiftKey){
+    e.preventDefault();
+    furiganaAcik = !furiganaAcik;
+    furiganaUygula();
+  }
+  // Tab = ingilizce ipucunu aç/kapa
+  else if(e.key === "Tab"){
+    e.preventDefault();
+    $("#hint").classList.toggle("gizli");
+  }
+  // Esc = bu cümleyi atla (hedefe saymaz)
+  else if(e.key === "Escape"){
+    e.preventDefault();
+    ilerle();
+  }
+  // Alt+S = ses kaydını dinle
+  else if(e.altKey && !e.ctrlKey && (e.key === "s" || e.key === "S")){
+    e.preventDefault();
+    sesCal();
+  }
+  // Alt+C = orijinal Japonca cümleyi kopyala
+  else if(e.altKey && !e.ctrlKey && (e.key === "c" || e.key === "C")){
+    e.preventDefault();
+    cumleyiKopyala();
+  }
+  // Alt+J = cümleyi Jisho'da ara
+  else if(e.altKey && !e.ctrlKey && (e.key === "j" || e.key === "J")){
+    e.preventDefault();
+    jishoAc();
+  }
+});
+
+function sesCal(){
+  const c = kuyruk[sira];
+  if(!c || !c.sesUrl) return;
+  if(aktifSes){
+    aktifSes.pause();
+    aktifSes.currentTime = 0;
+  }
+  aktifSes = new Audio(c.sesUrl);
+  const btn = $("#sesBtn");
+  if(btn){
+    btn.classList.add("caliyor");
+    btn.innerHTML = '🔊 <span class="btnYazi">çalıyor…</span>';
+  }
+  const temizle = () => {
+    if(btn){
+      btn.classList.remove("caliyor");
+      btn.innerHTML = '🔊 <span class="btnYazi">dinle</span>';
+    }
+  };
+  aktifSes.onended = temizle;
+  aktifSes.onerror = temizle;
+  aktifSes.play().catch(temizle);
+  $("#tr").focus();
+}
+
+function cumleyiKopyala(){
+  const c = kuyruk[sira];
+  if(!c || !c.ja) return;
+  panoyaKopyala(c.ja);
+
+  const btn = $("#kopyalaBtn");
+  btn.textContent = "✓ kopyalandı";
+  btn.classList.add("acik");
+  if(kopyalaZamanlayici) clearTimeout(kopyalaZamanlayici);
+  kopyalaZamanlayici = setTimeout(() => {
+    btn.textContent = "kopyala";
+    btn.classList.remove("acik");
+    kopyalaZamanlayici = null;
+  }, 1200);
+  $("#tr").focus();
+}
+
+function jishoAc(){
+  const c = kuyruk[sira];
+  if(!c || !c.ja) return;
+  const url = "https://jisho.org/search/" + encodeURIComponent(c.ja);
+  window.open(url, "_blank", "noopener,noreferrer");
+  $("#tr").focus();
+}
+
+$("#kucultBtn").onclick = () => {
+  if(boyutIndeks > 0) boyutAyarla(boyutIndeks - 1);
+  $("#tr").focus();
+};
+
+$("#buyutBtn").onclick = () => {
+  if(boyutIndeks < BOYUT_ORANLARI.length - 1) boyutAyarla(boyutIndeks + 1);
+  $("#tr").focus();
+};
+
+if($("#sesBtn")) $("#sesBtn").onclick = sesCal;
+const sesFiltreBtn = $("#sesFiltreBtn");
+if(sesFiltreBtn){
+  sesFiltreBtn.onclick = () => {
+    sesFiltresiAcik = !sesFiltresiAcik;
+    sesFiltreGuncelle();
+  };
+}
+
+$("#kopyalaBtn").onclick = cumleyiKopyala;
+$("#jishoBtn").onclick = jishoAc;
+
+$("#furiganaBtn").onclick = () => {
+  furiganaAcik = !furiganaAcik;
+  furiganaUygula();
+  $("#tr").focus();
+};
+
+/* ============================================================
+   GÖNDERİM TURU
+   ============================================================ */
+function listeCiz(){
+  const l = $("#liste");
+  l.innerHTML = "";
+
+  if(kayit.length === 0){
+    l.innerHTML = '<div class="listeBos">Henüz çeviri yok.<br>' +
+                  'Bir paket başlatıp birkaç cümle çevir.</div>';
+    return;
+  }
+
+  kayit.forEach((k, i) => {
+    const d = document.createElement("div");
+    d.className = "satir" + (k.gonderildi ? " bitti" : "");
+
+    const m = document.createElement("div");
+    m.className = "metin";
+    const ja = document.createElement("div");
+    ja.className = "ja";  ja.textContent = k.ja;
+    const tu = document.createElement("div");
+    tu.className = "tu";  tu.textContent = k.tr;
+    m.append(ja, tu);
+
+    const b = document.createElement("button");
+    b.textContent = k.gonderildi ? "✓ gönderildi" : "kopyala & aç";
+    b.title = k.gonderildi
+      ? "yanlışlıkla işaretlendiyse tıkla — geri alınır"
+      : "çeviriyi panoya kopyalar ve cümleyi Tatoeba'da açar";
+    b.onclick = () => {
+      // Zaten gönderildi işaretliyse tıklamak işareti GERİ ALIR.
+      // Böylece yanlış işaretlenen bir çeviri kaybolmaz.
+      if(k.gonderildi){
+        kayit[i].gonderildi = false;
+        kaydet();
+        listeCiz();
+        return;
+      }
+      panoyaKopyala(k.tr);
+      /* Tatoeba'da "add_translation" diye bir eylem YOK (SentencesController'da
+         sadece show ve save_translation var), o yüzden ana sayfaya atıyordu.
+         Doğru hedef cümle sayfası; oradaki çeviri ikonuna tıklayıp yapıştır. */
+      window.open("https://tatoeba.org/en/sentences/show/" + k.id, "_blank");
+      kayit[i].gonderildi = true;
+      kaydet();
+      listeCiz();
+    };
+
+    d.append(m, b);
+    l.append(d);
+  });
+}
+
+/* Pano kopyalama. Modern API file:// üzerinde bazen çalışmaz,
+   o yüzden eski yönteme düşen bir yedeği var. */
+function panoyaKopyala(metin){
+  if(navigator.clipboard && window.isSecureContext){
+    navigator.clipboard.writeText(metin).catch(() => eskiKopyala(metin));
+  }else{
+    eskiKopyala(metin);
+  }
+}
+function eskiKopyala(metin){
+  const t = document.createElement("textarea");
+  t.value = metin;
+  t.style.position = "fixed";
+  t.style.opacity = "0";
+  document.body.append(t);
+  t.select();
+  try{ document.execCommand("copy"); }catch(e){}
+  t.remove();
+}
+
+/* ============================================================
+   GÖNDERİM EKRANINA GİDİŞ / DÖNÜŞ
+   ============================================================
+   Nereden geldiysek oraya dönüyoruz: paket yarıdaysa çeviriye,
+   paket bittiyse bitiş ekranına, açılıştan geldiysek açılışa. */
+let gonderimOncesi = "baslangic";
+
+function gonderimeGit(){
+  gonderimOncesi = aktifEkran;
+  ekranGoster("gonderim");
+  listeCiz();
+  $("#sayac").textContent = bekleyenSayisi() + " gönderilmeyi bekliyor";
+  $("#modBtn").textContent = "← geri";
+}
+
+function gonderimdenDon(){
+  $("#modBtn").textContent = "gönderim turu →";
+  if(gonderimOncesi === "ceviri"){ ekranGoster("ceviri"); goster(); }
+  else if(gonderimOncesi === "bitis"){ paketBitti(); }
+  else { baslangicHazirla(); }
+}
+
+$("#modBtn").onclick = () => {
+  if(aktifEkran === "gonderim") gonderimdenDon();
+  else gonderimeGit();
+};
+
+/* ---- Yedekleme ---- */
+$("#disaAktar").onclick = () => {
+  const kan = new Blob([JSON.stringify(kayit, null, 2)], {type:"application/json"});
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(kan);
+  a.download = "tatoeba-cevirilerim.json";
+  a.click();
+  URL.revokeObjectURL(a.href);
+};
+
+$("#temizle").onclick = () => {
+  const kalan = kayit.filter(k => !k.gonderildi);
+  const silinecek = kayit.length - kalan.length;
+  if(silinecek === 0){ alert("Gönderilmiş çeviri yok."); return; }
+  if(confirm(silinecek + " gönderilmiş çeviri listeden silinsin mi?")){
+    kayit = kalan;
+    kaydet();
+    listeCiz();
+  }
+};
+
+/* ============================================================
+   BAŞLAT
+   ============================================================ */
+yukle();
+boyutAyarla(boyutIndeks);
+$("#furiganaBtn").classList.toggle("acik", furiganaAcik);
+$("#furiganaNot").classList.toggle("gizle", !furiganaAcik);
+baslangicHazirla();
+</script>
+</body>
+</html>
